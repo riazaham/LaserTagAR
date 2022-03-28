@@ -5,6 +5,10 @@ using UnityEngine.UI;
 
 public class OpponentScript : MonoBehaviour
 {
+    //Players buffer
+    public Queue playersQueue = new Queue();
+    PlayerData p2;
+
     // =============== ASSETS ============= //
     // health and shield assets
     public Image hpBar, shieldBar;
@@ -22,11 +26,11 @@ public class OpponentScript : MonoBehaviour
     public Camera ARCamera;
     public GameObject imageTarget;
 
+    // AR UI Canvas
+    public Canvas ARUICanvas;
+
 
     // ============ FLAGS AND VARIABLES ============= //
-    private bool isShieldActive = false;
-    private float gunDmg = 0.1f;
-    private float grenadeDmg = 0.3f;
     private IEnumerator shieldTimer;
 
     // =============== Create singleton instance ============== //
@@ -36,12 +40,38 @@ public class OpponentScript : MonoBehaviour
     {
         if (_instance != null && _instance != this) Destroy(this.gameObject);
         else _instance = this;
+
+        string state = "{\"p1\": {\"hp\": 70, \"action\": \"none\", \"bullets\": 3, \"grenades\": 1, \"shield_time\": 0, \"shield_health\": 20, \"num_deaths\": 0, \"num_shield\": 1}, \"p2\": {\"hp\": 90, \"action\": \"none\", \"bullets\": 6, \"grenades\": 2, \"shield_time\": 0, \"shield_health\": 30, \"num_deaths\": 0, \"num_shield\": 3}}";
+        Players players = JsonUtility.FromJson<Players>(state);
+        this.playersQueue.Enqueue(players.p2);
+    }
+
+    // ============ ROTATE TOWARDS CAMERA ============ //
+    void Update() {
+        ARUICanvas.transform.LookAt(ARCamera.transform);
+        shieldARObject.transform.LookAt(ARCamera.transform);
+        while (playersQueue.Count > 0) {
+            this.p2 = (PlayerData) playersQueue.Dequeue();
+            this.UpdatePlayerGameState();
+        }
+    }
+
+    // ============ UPDATE PLAYER GAME STATE FROM SERVER ============ //
+    public void UpdatePlayerGameState() {
+        //update HP
+        hpBar.fillAmount = this.p2.hp/100f;
+        hpText.text = this.p2.hp.ToString();
+
+        //update Shield
+        shieldBar.fillAmount = this.p2.shield_health/30f;
+        shieldText.text = this.p2.shield_health.ToString();
+        if (shieldBar.fillAmount <= 0.1) shieldARObject.SetActive(false);
+        else shieldARObject.SetActive(true); 
     }
 
     // ============= ACTIONS ================ //
     public void Shoot() {
         //Invoke player gets shot method
-        //PlayerScript.Player.GunShot();
     }
 
     public void ThrowGrenade() {
@@ -73,9 +103,6 @@ public class OpponentScript : MonoBehaviour
         ParticleSystem grenadeExplosion = Instantiate(grenadeExplosionPrefab, grenade.transform.position, grenade.transform.rotation);
         Destroy(grenade);
         grenadeExplosion.Play();
-
-        //Invoke player gets hit by grenade method
-        //PlayerScript.Player.GrenadeShot();
     }
 
     public void Shield() {
@@ -91,43 +118,62 @@ public class OpponentScript : MonoBehaviour
     }
 
     public void ActivateShield() {
-        isShieldActive = true;
         shieldARObject.SetActive(true);
         shieldText.text = "30";
         shieldBar.fillAmount = 1;
     }
 
     public void DeactivateShield() {
-        isShieldActive = false;
         shieldARObject.SetActive(false);
         shieldText.text = "0";
         shieldBar.fillAmount = 0;
     }
 
-    // ============== Player Invoked ACTIONS ============== //
-    public void GunShot() {
-        if (isShieldActive) {
-            shieldBar.fillAmount -= gunDmg * 10/3;
-            shieldText.text = (int.Parse(shieldText.text) - 10).ToString();
-            if (shieldBar.fillAmount <= 0.1) {
-                StopCoroutine(shieldTimer);
-                DeactivateShield();
-            }
-        } else {
-            hpText.text = (int.Parse(hpText.text) - 10).ToString(); 
-            hpBar.fillAmount -= gunDmg;
-        }
-    }
+    // =============== Player invoked actions ============== //
+    // public void GunShotWithShield() {
+    //     if (shieldBar.fillAmount <= 0.1) {
+    //         StopCoroutine(shieldTimer);
+    //         DeactivateShield();
+    //     }
+    // }
 
-    public void GrenadeShot() {
-        if (isShieldActive) {
-            StopCoroutine(shieldTimer);
-            DeactivateShield();
-        } else {
-            hpText.text = (int.Parse(hpText.text) - 30).ToString(); 
-            hpBar.fillAmount -= grenadeDmg;
-        }
-    }
+    // public void GunShotWithoutShield() {
+    //     //No animation
+    // }
+
+    // public void GrenadeShotWithShield() {
+    //     StopCoroutine(shieldTimer);
+    //     DeactivateShield();
+    // }
+
+    // public void GrenadeShotWithoutShield() {
+    //     //No animation
+    // }
+
+    // ============== Player Invoked ACTIONS ============== //
+    //public void GunShot() {
+        // if (isShieldActive) {
+        //     shieldBar.fillAmount -= gunDmg * 10/3;
+        //     shieldText.text = (int.Parse(shieldText.text) - 10).ToString();
+        //     if (shieldBar.fillAmount <= 0.1) {
+        //         StopCoroutine(shieldTimer);
+        //         DeactivateShield();
+        //     }
+        // } else {
+            // hpText.text = (int.Parse(hpText.text) - 10).ToString(); 
+            // hpBar.fillAmount -= 0.1f;
+        // }
+    //}
+
+    // public void GrenadeShot() {
+    //     if (isShieldActive) {
+    //         StopCoroutine(shieldTimer);
+    //         DeactivateShield();
+    //     } else {
+    //         hpText.text = (int.Parse(hpText.text) - 30).ToString(); 
+    //         hpBar.fillAmount -= grenadeDmg;
+    //     }
+    // }
 
     // ================= DEBUGGING ================= //
     public void Reset() {
@@ -135,6 +181,5 @@ public class OpponentScript : MonoBehaviour
         hpText.text = "100";
         shieldBar.fillAmount = 0;
         shieldText.text = "0";
-        isShieldActive = false;
     }
 }
