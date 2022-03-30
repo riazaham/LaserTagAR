@@ -9,8 +9,8 @@ public class TCPClient : MonoBehaviour {
 	#region private members 	
 	private TcpClient socketConnection; 	
 	private Thread clientReceiveThread; 	
-	private string IPAddress = "0.tcp.ngrok.io";
-	private int port = 19767;
+	private string IPAddress = "127.0.0.1";
+	private int port = 3333;
 
 	#endregion  	
 

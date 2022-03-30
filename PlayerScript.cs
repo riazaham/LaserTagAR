@@ -36,11 +36,19 @@ public class PlayerScript : MonoBehaviour
     public Camera ARCamera;
     public GameObject imageTarget;
 
+    // AR UI Canvas
+    public Canvas ARUICanvas;
+    public GameObject gameOver;
+
     // ============ FLAGS AND VARIABLES ============= //
 
     private IEnumerator shieldTimer;
     private bool isShieldActive;
     private bool isOpponentVisible = false;
+    private bool isBulletsEmpty = false;
+    private bool isGrenadesEmpty = false;
+    private bool isShieldsEmpty = false;
+
 
     // =============== Create singleton instance ============== //
     private static PlayerScript _instance;
@@ -80,6 +88,8 @@ public class PlayerScript : MonoBehaviour
             this.Reload();
         } else if (this.p1.action == "grenade") {
             this.ThrowGrenade();
+        } else if (this.p1.action == "logout") {
+            gameOver.SetActive(true);
         }
 
         //update HP
@@ -92,19 +102,19 @@ public class PlayerScript : MonoBehaviour
 
         //update gun ammo
         for (int ammo = 0; ammo < 6; ammo++) {
-            if (ammo <= this.p1.bullets) bullets[ammo].SetActive(true);
+            if (ammo < this.p1.bullets) bullets[ammo].SetActive(true);
             else bullets[ammo].SetActive(false);
         }
 
         //update grenade ammo
         for (int ammo = 0; ammo < 2; ammo++) {
-            if (ammo <= this.p1.grenades) grenades[ammo].SetActive(true);
+            if (ammo < this.p1.grenades) grenades[ammo].SetActive(true);
             else grenades[ammo].SetActive(false);
         }
 
         //update shield ammo
         for (int ammo = 0; ammo < 3; ammo++) {
-            if (ammo <= this.p1.num_shield) shields[ammo].SetActive(true);
+            if (ammo < this.p1.num_shield) shields[ammo].SetActive(true);
             else shields[ammo].SetActive(false);
         }
     }
@@ -112,8 +122,7 @@ public class PlayerScript : MonoBehaviour
     // ============= ACTIONS ================ //
     public void Shoot() {
         //bullets decreased in update player game state
-
-        if (this.p1.bullets > 0) {        
+        if (this.p1.bullets >= 0 && !this.isBulletsEmpty) {        
             //play shot animation and sound
             muzzleScreenFlash.Play();
             audioSource.clip = shootSfx;
@@ -121,6 +130,7 @@ public class PlayerScript : MonoBehaviour
 
             //flash camera
             StartCoroutine(CameraFlash());
+            if (this.p1.bullets == 0) this.isBulletsEmpty = true;
         } else {
             noMoreBullets.Play();
         }
@@ -133,9 +143,11 @@ public class PlayerScript : MonoBehaviour
     }
 
     public void ThrowGrenade() {
-        if (this.p1.grenades > 0) {
+        if (this.p1.grenades >= 0 && !this.isGrenadesEmpty) {
             //start throw animation
             StartCoroutine(ThrowAnimation());
+
+            if (this.p1.grenades == 0) this.isGrenadesEmpty = true;
         } else {
             noMoreGrenades.Play();
         }
@@ -151,7 +163,9 @@ public class PlayerScript : MonoBehaviour
         Vector3 startPos = grenade.transform.position;
         Vector3 targetPos;
         if (isOpponentVisible) {
-            targetPos = imageTarget.GetComponent<Transform>().transform.position;
+            Vector3 pos = ARUICanvas.GetComponent<Transform>().transform.position;
+            targetPos = new Vector3(pos.x, pos.y, pos.z - 0.1f);
+
         } else {
             targetPos = new Vector3(startPos.x, startPos.y, startPos.z + 2f);
         }
@@ -181,11 +195,15 @@ public class PlayerScript : MonoBehaviour
     }
 
     public void Shield() {
-        if (this.p1.num_shield > 0) {
+        if (this.isShieldActive) {
+            shieldIsActive.Play();
+        } else if (this.p1.num_shield >= 0 && !this.isShieldsEmpty) {
             //start shield animation
             shieldTimer = ShieldAnimation();
             isShieldActive = true;
             StartCoroutine(shieldTimer);
+
+            if (this.p1.num_shield == 0) this.isShieldsEmpty = true;
         } else {
             noMoreShields.Play();
         }
@@ -193,7 +211,7 @@ public class PlayerScript : MonoBehaviour
 
     IEnumerator ShieldAnimation() {
         ActivateShield();
-        for (int timer = 10; timer >= 0; timer--) {
+        for (int timer = 10; timer >= 1; timer--) {
             shieldTimerText.text = timer.ToString();
             yield return new WaitForSecondsRealtime(1f);
             shieldTimerProgressBar.fillAmount -= 0.1f;
@@ -238,10 +256,11 @@ public class PlayerScript : MonoBehaviour
     }
 
     public void Reload() {
-        if (this.p1.bullets == 0) {
+        if (this.p1.bullets == 6 && this.isBulletsEmpty) {
             //play reload sound
             audioSource.clip = reloadSfx;
             audioSource.Play();
+            this.isBulletsEmpty = false;   
         } else {
             cannotReload.Play();
         }
