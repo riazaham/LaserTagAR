@@ -7,7 +7,7 @@ public class OpponentScript : MonoBehaviour
 {
     //Players buffer
     public Queue playersQueue = new Queue();
-    PlayerData p2;
+    PlayerData opponent;
 
     // =============== ASSETS ============= //
     // health and shield assets
@@ -48,23 +48,25 @@ public class OpponentScript : MonoBehaviour
 
     // ============ ROTATE TOWARDS CAMERA ============ //
     void Update() {
-        ARUICanvas.transform.LookAt(ARCamera.transform);
-        shieldARObject.transform.LookAt(ARCamera.transform);
         while (playersQueue.Count > 0) {
-            this.p2 = (PlayerData) playersQueue.Dequeue();
+            this.opponent = (PlayerData) playersQueue.Dequeue();
             this.UpdatePlayerGameState();
         }
     }
 
     // ============ UPDATE PLAYER GAME STATE FROM SERVER ============ //
     public void UpdatePlayerGameState() {
+        if (this.opponent.action == "grenade") {
+            this.ThrowGrenade();
+        }
+
         //update HP
-        hpBar.fillAmount = this.p2.hp/100f;
-        hpText.text = this.p2.hp.ToString();
+        hpBar.fillAmount = this.opponent.hp/100f;
+        hpText.text = this.opponent.hp.ToString();
 
         //update Shield
-        shieldBar.fillAmount = this.p2.shield_health/30f;
-        shieldText.text = this.p2.shield_health.ToString();
+        shieldBar.fillAmount = this.opponent.shield_health/30f;
+        shieldText.text = this.opponent.shield_health.ToString();
         if (shieldBar.fillAmount <= 0.1) shieldARObject.SetActive(false);
         else shieldARObject.SetActive(true); 
     }

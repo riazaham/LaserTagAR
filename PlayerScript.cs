@@ -7,7 +7,7 @@ public class PlayerScript : MonoBehaviour
 {
     //Players buffer
     public Queue playersQueue = new Queue();
-    PlayerData p1;
+    PlayerData player;
 
     // =============== ASSETS ============= //
     // health and shield assets
@@ -73,56 +73,91 @@ public class PlayerScript : MonoBehaviour
     // Enqueue and dequeue
     void Update() {
         while (this.playersQueue.Count > 0) {
-            this.p1 = (PlayerData) playersQueue.Dequeue();
+            this.player = (PlayerData) playersQueue.Dequeue();
             this.UpdatePlayerGameState();
         }
     }
 
     // ============ UPDATE PLAYER GAME STATE FROM SERVER ============ //
     public void UpdatePlayerGameState() {
-        if (this.p1.action == "shoot") {
+        if (this.player.action == "shoot") {
             this.Shoot();
-        } else if (this.p1.action == "shield") {
+        } else if (this.player.action == "shield") {
             this.Shield();
-        } else if (this.p1.action == "reload") {
+        } else if (this.player.action == "reload") {
             this.Reload();
-        } else if (this.p1.action == "grenade") {
+        } else if (this.player.action == "grenade") {
             this.ThrowGrenade();
-        } else if (this.p1.action == "logout") {
+        } else if (this.player.action == "logout") {
             gameOver.SetActive(true);
+        } else if (this.player.action == "gunshot") {
+            this.GunShot();
+        } else if (this.player.action == "grenadeshot") {
+            this.GrenadeShot();
         }
 
-        //update HP
-        hpBar.fillAmount = this.p1.hp/100f;
-        hpText.text = this.p1.hp.ToString();
-
-        //update Shield
-        shieldBar.fillAmount = this.p1.shield_health/30f;
-        shieldText.text = this.p1.shield_health.ToString();
+        //update HP and Shield
+        bool hpDown = this.player.hp < int.Parse(hpText.text);
+        StartCoroutine(this.UpdateHP(this.player.hp, hpDown));
+        StartCoroutine(this.UpdateShield(this.player.shield_health));
 
         //update gun ammo
         for (int ammo = 0; ammo < 6; ammo++) {
-            if (ammo < this.p1.bullets) bullets[ammo].SetActive(true);
+            if (ammo < this.player.bullets) bullets[ammo].SetActive(true);
             else bullets[ammo].SetActive(false);
         }
 
         //update grenade ammo
         for (int ammo = 0; ammo < 2; ammo++) {
-            if (ammo < this.p1.grenades) grenades[ammo].SetActive(true);
+            if (ammo < this.player.grenades) grenades[ammo].SetActive(true);
             else grenades[ammo].SetActive(false);
         }
 
         //update shield ammo
         for (int ammo = 0; ammo < 3; ammo++) {
-            if (ammo < this.p1.num_shield) shields[ammo].SetActive(true);
+            if (ammo < this.player.num_shield) shields[ammo].SetActive(true);
             else shields[ammo].SetActive(false);
+        }
+    }
+
+    IEnumerator UpdateHP(int newHp, bool hpDown) {
+        float oldFillAmount = hpBar.fillAmount;
+        int oldHp = int.Parse(hpText.text);
+        float newFillAmount = newHp/100f;
+        float time = 0f;
+        float duration = 0.5f;
+
+        if (hpDown) hpBar.color = Color.red;
+        while (time < duration) {
+            time += Time.deltaTime;
+            float speed = time / duration;
+            hpBar.fillAmount = Mathf.Lerp(oldFillAmount, newFillAmount, speed);
+            hpText.text = ((int) Mathf.Lerp(oldHp, newHp, speed)).ToString();
+            yield return null;
+        }
+        if (hpDown) hpBar.color = Color.white;
+    }
+
+    IEnumerator UpdateShield(int newShield) {
+        float oldFillAmount = shieldBar.fillAmount;
+        int oldShield = int.Parse(shieldText.text);
+        float newFillAmount = newShield/30f;
+        float time = 0f;
+        float duration = 0.5f;
+
+        while (time < duration) {
+            time += Time.deltaTime;
+            float speed = time / duration;
+            shieldBar.fillAmount = Mathf.Lerp(oldFillAmount, newFillAmount, speed);
+            shieldText.text = ((int) Mathf.Lerp(oldShield, newShield, speed)).ToString();
+            yield return null;
         }
     }
 
     // ============= ACTIONS ================ //
     public void Shoot() {
         //bullets decreased in update player game state
-        if (this.p1.bullets >= 0 && !this.isBulletsEmpty) {        
+        if (this.player.bullets >= 0 && !this.isBulletsEmpty) {        
             //play shot animation and sound
             muzzleScreenFlash.Play();
             audioSource.clip = shootSfx;
@@ -130,7 +165,7 @@ public class PlayerScript : MonoBehaviour
 
             //flash camera
             StartCoroutine(CameraFlash());
-            if (this.p1.bullets == 0) this.isBulletsEmpty = true;
+            if (this.player.bullets == 0) this.isBulletsEmpty = true;
         } else {
             noMoreBullets.Play();
         }
@@ -143,17 +178,17 @@ public class PlayerScript : MonoBehaviour
     }
 
     public void ThrowGrenade() {
-        if (this.p1.grenades >= 0 && !this.isGrenadesEmpty) {
+        if (this.player.grenades >= 0 && !this.isGrenadesEmpty) {
             //start throw animation
-            StartCoroutine(ThrowAnimation());
+            StartCoroutine(ThrowAnimation(this.isOpponentVisible));
 
-            if (this.p1.grenades == 0) this.isGrenadesEmpty = true;
+            if (this.player.grenades == 0) this.isGrenadesEmpty = true;
         } else {
             noMoreGrenades.Play();
         }
     }
 
-    IEnumerator ThrowAnimation() {    
+    IEnumerator ThrowAnimation(bool isVisible) {    
         //2s delay
         float time = 0;
         float duration = 2f;
@@ -162,7 +197,7 @@ public class PlayerScript : MonoBehaviour
         GameObject grenade = Instantiate(grenadePrefab, grenadeStartPos.position, grenadeStartPos.rotation, ARCamera.transform);
         Vector3 startPos = grenade.transform.position;
         Vector3 targetPos;
-        if (isOpponentVisible) {
+        if (isVisible) {
             Vector3 pos = ARUICanvas.GetComponent<Transform>().transform.position;
             targetPos = new Vector3(pos.x, pos.y, pos.z - 0.1f);
 
@@ -183,7 +218,7 @@ public class PlayerScript : MonoBehaviour
 
         Transform grenadePos = grenade.transform;
         Destroy(grenade);
-        if (isOpponentVisible) {
+        if (isVisible) {
             //explode after 2s
             ParticleSystem grenadeExplosion = Instantiate(grenadeExplosionPrefab, grenadePos.position, grenadePos.rotation);
 
@@ -197,13 +232,13 @@ public class PlayerScript : MonoBehaviour
     public void Shield() {
         if (this.isShieldActive) {
             shieldIsActive.Play();
-        } else if (this.p1.num_shield >= 0 && !this.isShieldsEmpty) {
+        } else if (this.player.num_shield >= 0 && !this.isShieldsEmpty) {
             //start shield animation
             shieldTimer = ShieldAnimation();
             isShieldActive = true;
             StartCoroutine(shieldTimer);
 
-            if (this.p1.num_shield == 0) this.isShieldsEmpty = true;
+            if (this.player.num_shield == 0) this.isShieldsEmpty = true;
         } else {
             noMoreShields.Play();
         }
@@ -256,7 +291,7 @@ public class PlayerScript : MonoBehaviour
     }
 
     public void Reload() {
-        if (this.p1.bullets == 6 && this.isBulletsEmpty) {
+        if (this.player.bullets == 6 && this.isBulletsEmpty) {
             //play reload sound
             audioSource.clip = reloadSfx;
             audioSource.Play();
@@ -267,49 +302,39 @@ public class PlayerScript : MonoBehaviour
     }
 
     // =============== Opponent invoked actions ============== //
-    // public void GetShot() {
-    //     if (isShieldActive) {
-    //         audioSource.clip = shieldHitSfx;
-    //         audioSource.Play();
-    //         if (this.p1.shield_health == 0) {
-    //             StopCoroutine(shieldTimer);
-    //             DeactivateShield();
-    //         }
-    //     } else {
-    //         bloodyFrame.Play();
-    //         audioSource.clip = getHitSfx;
-    //         audioSource.Play();
-    //     }
-    // }
+    public void GunShot() {
+        if (isShieldActive) {
+            audioSource.clip = shieldHitSfx;
+            audioSource.Play();
+            if (this.player.shield_health == 0) {
+                StopCoroutine(shieldTimer);
+                DeactivateShield();
+            }
+        } else {
+            bloodyFrame.Play();
+            audioSource.clip = getHitSfx;
+            audioSource.Play();
+        }
+    }
 
-    // public void GrenadeShot() {
-    //     if (isShieldActive) {
-    //         StopCoroutine(shieldTimer);
-    //         audioSource.clip = shieldHitSfx;
-    //         audioSource.Play();
-    //         DeactivateShield();
-    //     } else {
-    //         grenadeScreenFlash.Play();
-    //         bloodyFrame.Play();
-    //         audioSource.clip = grenadeExplosionSfx;
-    //         audioSource.Play();
-    //     }
-    // }
+    public void GrenadeShot() {
+        if (isShieldActive) {
+            StopCoroutine(shieldTimer);
+            audioSource.clip = shieldHitSfx;
+            audioSource.Play();
+            DeactivateShield();
+        } else {
+            grenadeScreenFlash.Play();
+            bloodyFrame.Play();
+            audioSource.clip = grenadeExplosionSfx;
+            audioSource.Play();
+        }
+    }
 
     // ================= DEBUGGING ================= //
-    public void Reset() {
-        hpBar.fillAmount = 1;
-        hpText.text = "100";
-        shieldBar.fillAmount = 0;
-        shieldText.text = "0";
-        for (int ammo = 0; ammo < 6; ammo++) {
-            bullets[ammo].SetActive(true);
-        }
-        for (int ammo = 0; ammo < 2; ammo++) {
-            grenades[ammo].SetActive(true);
-        }
-        for (int ammo = 0; ammo < 3; ammo++) {
-            shields[ammo].SetActive(true);
-        }
+    public void ResetVariables() {
+        this.isBulletsEmpty = false;
+        this.isGrenadesEmpty = false;
+        this.isShieldsEmpty = false;
     }
 }

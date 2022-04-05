@@ -3,14 +3,18 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class TCPClient : MonoBehaviour { 
+
+	public Text playerNum;
 
 	#region private members 	
 	private TcpClient socketConnection; 	
 	private Thread clientReceiveThread; 	
 	private string IPAddress = "127.0.0.1";
 	private int port = 3333;
+	private PlayerData p1, p2;
 
 	#endregion  	
 
@@ -68,8 +72,8 @@ public class TCPClient : MonoBehaviour {
 							Debug.unityLogger.Log("CAPSTONE", "message: " + messages[i]);
 							Players players = JsonUtility.FromJson<Players>(messages[i]);
 							Debug.Log(messages[i]);
-							PlayerScript.Player.playersQueue.Enqueue(players.p1);
-							OpponentScript.Opponent.playersQueue.Enqueue(players.p2);
+							this.p1 = players.p1;
+							this.p2 = players.p2;
 						}
 
 						leftOverMessage = messages[messages.Length - 1];		
@@ -105,15 +109,36 @@ public class TCPClient : MonoBehaviour {
 		}     
 	} 
 
-	public void sendTestGameState() {
-		//string state1 = "{\"p1\": {\"hp\": 70, \"action\": \"none\", \"bullets\": 3, \"grenades\": 1, \"shield_time\": 0, \"shield_health\": 20, \"num_deaths\": 0, \"num_shield\": 1}, \"p2\": {\"hp\": 90, \"action\": \"none\", \"bullets\": 6, \"grenades\": 2, \"shield_time\": 0, \"shield_health\": 30, \"num_deaths\": 0, \"num_shield\": 3}}";
-        string state = "{\"p1\": {\"hp\": 70, \"action\": \"none\", \"bullets\": 3, \"grenades\": 1, \"shield_time\": 0, \"shield_health\": 20, \"num_deaths\": 0, \"num_shield\": 1}, \"p2\": {\"hp\": 90, \"action\": \"none\", \"bullets\": 6, \"grenades\": 2, \"shield_time\": 0, \"shield_health\": 30, \"num_deaths\": 0, \"num_shield\": 3}}\n{\"p1\": {\"hp\": 70, \"action\": \"none\", \"bullets\": 3, \"grenades\": 1, \"shield_time\": 0, \"shield_health\": 20, \"num_deaths\": 0, \"num_shield\": 1}, \"p2\": {\"hp\": 90, \"action\": \"none\", \"bullets\": 6, \"grenades\": 2, \"shield_time\": 0, \"shield_health\": 30, \"num_deaths\": 0, \"num_shield\": 3}}";
-        string[] messages = state.Split('\n');
-
-		foreach (string message in messages) {
-			Players players = JsonUtility.FromJson<Players>(message);
-			PlayerScript.Player.playersQueue.Enqueue(players.p1);
-			OpponentScript.Opponent.playersQueue.Enqueue(players.p2);
+	private void EnqueuePlayerData() {
+		if (playerNum.text.Equals("Player 1")) {
+			PlayerScript.Player.playersQueue.Enqueue(this.p1);
+			OpponentScript.Opponent.playersQueue.Enqueue(this.p2);
+		} else {
+			PlayerScript.Player.playersQueue.Enqueue(this.p2);
+			OpponentScript.Opponent.playersQueue.Enqueue(this.p1);
 		}
+	}
+
+	public void Reconnect() {
+		if (clientReceiveThread.IsAlive) {
+			clientReceiveThread.Abort();
+		}
+		PlayerScript.Player.ResetVariables();
+		this.ConnectToTcpServer();
+	}
+	
+	public void ChangePlayer() {
+		if (playerNum.text.Equals("Player 1")) playerNum.text = "Player 2";
+		else playerNum.text = "Player 1";
+		this.EnqueuePlayerData();
+	}
+
+	//DEBUG
+	public void SendGameState(int newShield) {
+        string state = "{\"p1\": {\"hp\": 70, \"action\": \"none\", \"bullets\": 3, \"grenades\": 1, \"shield_time\": 0, \"shield_health\": " + newShield.ToString() + ", \"num_deaths\": 0, \"num_shield\": 1}, \"p2\": {\"hp\": 90, \"action\": \"none\", \"bullets\": 6, \"grenades\": 2, \"shield_time\": 0, \"shield_health\": 30, \"num_deaths\": 0, \"num_shield\": 3}}";
+        Players players = JsonUtility.FromJson<Players>(state);
+		this.p1 = players.p1;
+		this.p2 = players.p2;
+		this.EnqueuePlayerData();
 	}
 }
